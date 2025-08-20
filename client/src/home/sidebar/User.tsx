@@ -1,4 +1,3 @@
-// Enhanced User Component
 import React from "react";
 import useConversation from "../../states/useConversation";
 import { type User } from "../../context/socketContext/SocketContext";
@@ -18,8 +17,55 @@ const User: React.FC<UserProps> = ({ user }) => {
 
   const isSelected = selectedConversation?._id === user._id;
 
-  // Check if user is online
-  const isOnline = onlineUsers.includes(user._id)
+  // Debug logging
+  // console.log("🔍 User Component Debug:", {
+  //   userId: user._id,
+  //   userName: user.name,
+  //   isConnected,
+  //   onlineUsers,
+  //   onlineUsersType: typeof onlineUsers,
+  //   onlineUsersArray: Array.isArray(onlineUsers),
+  //   socketId: socket?.id,
+  // });
+
+  // Check if user is online - FIX THE LOGIC HERE
+  const isOnline = React.useMemo(() => {
+    if (!Array.isArray(onlineUsers)) {
+      console.warn("⚠️ onlineUsers is not an array:", onlineUsers);
+      return false;
+    }
+
+    // Check if onlineUsers contains objects with _id property
+    const hasUserObjects =
+      onlineUsers.length > 0 && typeof onlineUsers[0] === "object";
+
+    if (hasUserObjects) {
+      // onlineUsers is array of objects like [{_id: "123"}, {_id: "456"}]
+      const isUserOnline = onlineUsers.some(
+        (onlineUser: any) => onlineUser._id === user._id
+      );
+      console.log(
+        `🟢 Checking object format - User ${user.name} (${user._id}) online:`,
+        isUserOnline
+      );
+      return isUserOnline;
+    } else {
+      // onlineUsers is array of strings like ["123", "456"]
+      const isUserOnline = onlineUsers.includes(user._id);
+      console.log(
+        `🟢 Checking string format - User ${user.name} (${user._id}) online:`,
+        isUserOnline
+      );
+      return isUserOnline;
+    }
+  }, [onlineUsers, user._id, user.name]);
+
+  // console.log(
+  //   `✅ Final result - User ${user.name} isOnline:`,
+  //   isOnline,
+  //   "isConnected:",
+  //   isConnected
+  // );
 
   const handleClick = () => {
     if (isSelected) {
@@ -39,23 +85,18 @@ const User: React.FC<UserProps> = ({ user }) => {
       <div className="p-4 flex gap-4 cursor-pointer hover:bg-gray-600 duration-200">
         <div className="relative inline-block">
           <div className="w-16 h-16 rounded-full bg-gray-400"></div>
+
           {/* Show green dot only if user is online and socket is connected */}
           {isOnline && isConnected && (
-            <span className="absolute top-0 right-0 block w-4 h-4 rounded-full bg-green-500 border-2 border-white"></span>
-          )}
-          {/* Show red dot if socket is disconnected */}
-          {!isConnected && (
-            <span className="absolute top-0 right-0 block w-4 h-4 rounded-full bg-red-500 border-2 border-white"></span>
+            <span className="absolute top-0 right-0 block w-4 h-4 rounded-full bg-green-500 border-2 border-white ring-2 ring-green-300"></span>
           )}
         </div>
+
         <div className="info text-white flex justify-center flex-col">
-          <div className="flex items-center gap-2">
-            <h1 className="text-xl font-semibold">{user.name}</h1>
-            {isOnline && isConnected && (
-              <span className="text-green-400 text-xs">●</span>
-            )}
-          </div>
-          <span className="text-gray-400 italic">{user.email}</span>
+          <span className="text-gray-400 text-xl italic">{user.email}</span>
+          <span className="text-gray-400 italic">last retrieved message</span>
+
+
         </div>
       </div>
     </div>

@@ -1,123 +1,94 @@
-import React, { useState } from "react";
-import { useSocketContext } from "../../context/socketContext/useSocketContext";
-import { useAuth } from "../../context/authContext/useAuth";
+import React, { useEffect, useRef } from "react";
+import useGetMessage from "../../context/message/useGetMessage";
+import useGetSocketMessage from "../../context/socketContext/useGetSocketMessage";
+import Cookies from "js-cookie";
 
-interface MessageInputProps {
-  receiverId: string; // The person you're chatting with
-}
+const MessagesList: React.FC = () => {
+  const { messages, loading } = useGetMessage();
+  useGetSocketMessage(); // Listen for incoming messages
+  const lastMessageRef = useRef<HTMLDivElement | null>(null);
 
-const MessageInput: React.FC<MessageInputProps> = ({ receiverId }) => {
-  const [message, setMessage] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const { socket, isConnected } = useSocketContext();
-  const { authUser } = useAuth();
-
-  const handleSend = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (
-      !message.trim() ||
-      !socket ||
-      !authUser?.user?._id ||
-      !isConnected ||
-      isLoading
-    ) {
-      return;
-    }
-
-    const messageData = {
-      _id: Date.now().toString(), // Generate unique ID
-      message: message.trim(),
-      senderId: authUser.user._id,
-      receiverId: receiverId,
-      createdAt: new Date().toISOString(),
-    };
-
-    console.log("📤 Sending message via socket:", messageData);
-
-    setIsLoading(true);
-
+  // Get authenticated user ID
+  const stored = Cookies.get("jwt") || localStorage.getItem("token");
+  let authUserId: string | null = null;
+  if (stored) {
     try {
-      // Send message via Socket.IO
-      socket.emit("sendMessage", messageData);
-
-      // Clear input after sending
-      setMessage("");
-    } catch (error) {
-      console.error("❌ Failed to send message:", error);
-    } finally {
-      setIsLoading(false);
+      const parsed = JSON.parse(stored);
+      authUserId = parsed.user?._id || null;
+    } catch (e) {
+      console.error("Invalid token format", e);
     }
-  };
+  }
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleSend(e);
-    }
-  };
+  // Scroll to the last message whenever messages update
+  useEffect(() => {
+    setTimeout(() => {
+      lastMessageRef.current?.scrollIntoView({ behavior: "smooth" });
+    }, 100);
+  }, [messages]);
 
   return (
-    <div className="border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
-      <form onSubmit={handleSend} className="p-4">
-        <div className="flex items-end gap-3">
-          <div className="flex-1">
-            <textarea
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              onKeyPress={handleKeyPress}
-              placeholder={isConnected ? "Type a message..." : "Connecting..."}
-              disabled={!isConnected || isLoading}
-              rows={1}
-              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 
-                       rounded-lg resize-none focus:outline-none focus:ring-2 
-                       focus:ring-blue-500 focus:border-transparent
-                       bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100
-                       placeholder-gray-500 dark:placeholder-gray-400
-                       disabled:opacity-50 disabled:cursor-not-allowed
-                       max-h-32 overflow-y-auto"
-              style={{ minHeight: "40px" }}
-            />
-          </div>
-
-          <button
-            type="submit"
-            disabled={!message.trim() || !isConnected || isLoading}
-            className="px-6 py-2 bg-blue-500 hover:bg-blue-600 
-                     disabled:bg-gray-300 disabled:cursor-not-allowed
-                     text-white font-medium rounded-lg transition-colors
-                     flex items-center justify-center min-w-[80px]"
-          >
-            {isLoading ? (
-              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-            ) : (
-              "Send"
-            )}
-          </button>
+    <div
+      className="h-full w-full p-4 flex flex-col gap-3 overflow-y-auto
+      [&::-webkit-scrollbar]:w-2
+      [&::-webkit-scrollbar-track]:rounded-full
+      [&::-webkit-scrollbar-track]:bg-gray-100
+      [&::-webkit-scrollbar-thumb]:rounded-full
+      [&::-webkit-scrollbar-thumb]:bg-gray-300
+      dark:[&::-webkit-scrollbar-track]:bg-gray-400
+      dark:[&::-webkit-scrollbar-thumb]:bg-neutral-700"
+      style={{ minHeight: "calc(92vh - 8vh)" }}
+    >
+      {loading ? (
+        <p className="text-center mt-20">Loading messages...</p>
+      ) : messages.length === 0 ? (
+        <div className="flex flex-col items-center justify-center mt-[20%] text-center space-y-3">
+          <h2 className="text-2xl font-bold text-gray-700 dark:text-gray-200">
+            👋 Welcome to Your Chat
+          </h2>
+          <p className="text-gray-500 dark:text-gray-400 max-w-sm">
+            No messages yet. Start a conversation!
+          </p>
         </div>
-
-        {/* Connection status indicator */}
-        <div className="mt-2 flex items-center justify-between text-sm">
+      ) : (
+        messages.map((msg, index) => (
           <div
-            className={`flex items-center gap-2 ${
-              isConnected ? "text-green-600" : "text-red-600"
+            key={msg._id || `${index}`}
+            ref={index === messages.length - 1 ? lastMessageRef : null}
+            className={`flex ${
+              msg.senderId === authUserId ? "justify-end" : "justify-start"
             }`}
           >
             <div
-              className={`w-2 h-2 rounded-full ${
-                isConnected ? "bg-green-500" : "bg-red-500"
-              }`}
-            />
-            {isConnected ? "Connected" : "Disconnected"}
+              className={`max-w-xs px-4 py-2 rounded-2xl shadow transition-all duration-200 hover:shadow-md
+              ${
+                msg.senderId !== authUserId
+                  ? "bg-gray-800 text-gray-100 rounded-bl-none"
+                  : "bg-gray-200 text-gray-900 rounded-br-none"
+              }
+              `}
+            >
+              <div className="break-words">{msg.message }</div>
+              {msg.createdAt && (
+                <div
+                  className={`text-xs mt-1 ${
+                    msg.senderId !== authUserId
+                      ? "text-gray-300"
+                      : "text-gray-500"
+                  }`}
+                >
+                  {new Date(msg.createdAt).toLocaleTimeString([], {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </div>
+              )}
+            </div>
           </div>
-
-          <div className="text-gray-500 dark:text-gray-400">
-            Press Enter to send
-          </div>
-        </div>
-      </form>
+        ))
+      )}
     </div>
   );
 };
 
-export default MessageInput;
+export default MessagesList;
