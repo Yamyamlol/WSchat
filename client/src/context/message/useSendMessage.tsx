@@ -1,52 +1,53 @@
 import { useState } from "react";
 import useConversation, { type Message } from "../../states/useConversation";
 import axios from "axios";
+import Cookies from "js-cookie";
 
 const useSendMessage = () => {
   const [loading, setLoading] = useState(false);
-  const { messages, setMessages, selectedConversation } = useConversation();
+  const { selectedConversation } = useConversation();
 
   const sendMessage = async (messageText: string) => {
     if (!selectedConversation?._id) {
       console.error("No conversation selected");
       return;
     }
+
     const getUserId = () => {
       try {
-        const userData = localStorage.getItem("userData"); // or whatever key you use
-        return userData ? JSON.parse(userData)._id : null;
+        const userData = Cookies.get("jwt") || localStorage.getItem("token");
+        return userData ? JSON.parse(userData).user._id : null;
       } catch (error) {
         console.error("Error parsing user data:", error);
         return null;
       }
     };
+
     const userId = getUserId();
     if (!userId) {
       console.error("User not authenticated");
+      return;
     }
-    // Create a proper Message object for local state
-    const newMessage: Message = {
-      text: messageText,
-      timestamp: new Date().toISOString(),
-      senderId: getUserId(),
-      id: selectedConversation._id,
-    };
-    setLoading(true);
-    try {
-      const updatedMessages = [...messages, newMessage];
-      setMessages(updatedMessages);
 
+    setLoading(true);
+
+    try {
+      console.log("📤 Sending message to server...");
+
+      // Send to server - let Socket.IO handle the real-time update
       const response = await axios.post(
         `/api/message/send/${selectedConversation._id}`,
         { text: messageText },
         { withCredentials: true }
       );
-      if (response.data) {
-        const messagesWithResponse = [...updatedMessages, response.data.newMessage];
-        setMessages(messagesWithResponse);
+
+      if (response.data?.success) {
+        console.log("✅ Message sent successfully");
+        // Don't update state here - let useGetSocketMessage handle it
       }
     } catch (error) {
-      console.error("Error in useSendMessage: ", error);
+      console.error("❌ Error in useSendMessage:", error);
+      // You could add error handling here, like showing a toast notification
     } finally {
       setLoading(false);
     }

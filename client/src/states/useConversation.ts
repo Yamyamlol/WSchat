@@ -3,15 +3,16 @@ import { create } from "zustand";
 export interface Conversation {
   _id: string;
   name: string;
-  // add other fields (lastMessage, participants, etc.) if needed
+  // Add more fields like lastMessage, participants if needed
 }
 
 export interface Message {
-  id?: string;
-  senderId?: string;
-  text: string;
-  timestamp?: string;
-  message?: string,
+  _id: string;
+  senderId: string;
+  receiverId: string;
+  message: string; // depending on your backend
+  updatedAt?: string;
+  createdAt: string;
 }
 
 interface ConversationState {
@@ -19,7 +20,7 @@ interface ConversationState {
   setSelectedConversation: (conversation: Conversation | null) => void;
 
   messages: Message[];
-  setMessages: (messages: Message[]) => void;
+  setMessages: (messages: Message[] | ((prev: Message[]) => Message[])) => void;
 }
 
 const useConversation = create<ConversationState>((set) => ({
@@ -28,7 +29,11 @@ const useConversation = create<ConversationState>((set) => ({
     set({ selectedConversation: conversation }),
 
   messages: [],
-  setMessages: (messages) => set({ messages }),
+  setMessages: (messages) =>
+    set((state) => ({
+      messages:
+        typeof messages === "function" ? messages(state.messages) : messages,
+    })),
 }));
 
 export default useConversation;

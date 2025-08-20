@@ -1,13 +1,19 @@
 // SocketContext.ts
 import { createContext } from "react";
-import io from "socket.io-client";
+import io from "socket.io-client"; // and then use io(...)
+export interface User {
+  _id: string;
+  name?: string;
+  email?: string;
+}
 
-// Use typeof to get the Socket type from the io function return type
 type Socket = ReturnType<typeof io>;
 
 export interface SocketContextType {
   socket: Socket | null;
   setSocket: React.Dispatch<React.SetStateAction<Socket | null>>;
+  onlineUsers: User[];
+  isConnected: boolean;
 }
 
 export const SocketContext = createContext<SocketContextType | null>(null);

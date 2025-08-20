@@ -1,75 +1,123 @@
-import React, { useEffect, useRef } from "react";
-import useGetMessage from "../../context/message/useGetMessage";
+import React, { useState } from "react";
+import { useSocketContext } from "../../context/socketContext/useSocketContext";
+import { useAuth } from "../../context/authContext/useAuth";
 
-const Chats = () => {
-  const { messages, loading } = useGetMessage();
+interface MessageInputProps {
+  receiverId: string; // The person you're chatting with
+}
 
-  const lastMessageRef = useRef<HTMLDivElement | null>(null);
+const MessageInput: React.FC<MessageInputProps> = ({ receiverId }) => {
+  const [message, setMessage] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const { socket, isConnected } = useSocketContext();
+  const { authUser } = useAuth();
 
-  useEffect(() => {
-    if (lastMessageRef.current) {
-      lastMessageRef.current.scrollIntoView({ behavior: "smooth" });
+  const handleSend = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (
+      !message.trim() ||
+      !socket ||
+      !authUser?.user?._id ||
+      !isConnected ||
+      isLoading
+    ) {
+      return;
     }
-  }, [messages]); // run whenever messages change
 
-  const stored = localStorage.getItem("token");
-  let authUserId: string | null = null;
+    const messageData = {
+      _id: Date.now().toString(), // Generate unique ID
+      message: message.trim(),
+      senderId: authUser.user._id,
+      receiverId: receiverId,
+      createdAt: new Date().toISOString(),
+    };
 
-  if (stored) {
+    console.log("📤 Sending message via socket:", messageData);
+
+    setIsLoading(true);
+
     try {
-      const parsed = JSON.parse(stored);
-      authUserId = parsed.user?._id || null;
-    } catch (e) {
-      console.error("Invalid token format", e);
+      // Send message via Socket.IO
+      socket.emit("sendMessage", messageData);
+
+      // Clear input after sending
+      setMessage("");
+    } catch (error) {
+      console.error("❌ Failed to send message:", error);
+    } finally {
+      setIsLoading(false);
     }
-  }
+  };
+
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSend(e);
+    }
+  };
 
   return (
-    <div
-      className="h-full w-full p-4 flex flex-col gap-3 overflow-y-auto [&::-webkit-scrollbar]:w-2
-      [&::-webkit-scrollbar-track]:rounded-full
-      [&::-webkit-scrollbar-track]:bg-gray-100
-      [&::-webkit-scrollbar-thumb]:rounded-full
-      [&::-webkit-scrollbar-thumb]:bg-gray-300
-      dark:[&::-webkit-scrollbar-track]:bg-gray-400
-      dark:[&::-webkit-scrollbar-thumb]:bg-neutral-700"
-    >
-      {!loading && messages.length === 0 && (
-        <div className="flex flex-col items-center justify-center mt-[20%] text-center space-y-3">
-          <h2 className="text-2xl font-bold text-gray-700 dark:text-gray-200">
-            👋 Welcome to Your Chat
-          </h2>
-          <p className="text-gray-500 dark:text-gray-400 max-w-sm">
-            No messages yet. Start a conversation and break the silence!
-          </p>
-          <span className="text-sm italic text-gray-400 dark:text-gray-500">
-            "Every great story begins with a hello..."
-          </span>
-        </div>
-      )}
+    <div className="border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+      <form onSubmit={handleSend} className="p-4">
+        <div className="flex items-end gap-3">
+          <div className="flex-1">
+            <textarea
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              onKeyPress={handleKeyPress}
+              placeholder={isConnected ? "Type a message..." : "Connecting..."}
+              disabled={!isConnected || isLoading}
+              rows={1}
+              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 
+                       rounded-lg resize-none focus:outline-none focus:ring-2 
+                       focus:ring-blue-500 focus:border-transparent
+                       bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100
+                       placeholder-gray-500 dark:placeholder-gray-400
+                       disabled:opacity-50 disabled:cursor-not-allowed
+                       max-h-32 overflow-y-auto"
+              style={{ minHeight: "40px" }}
+            />
+          </div>
 
-      {messages.map((msg, index) => (
-        <div
-          key={msg.id || index}
-          ref={index === messages.length - 1 ? lastMessageRef : null} // attach ref to last message
-          className={`flex ${
-            msg.senderId === authUserId ? "justify-end" : "justify-start"
-          }`}
-        >
-          <div
-            className={`max-w-xs px-4 py-2 rounded-2xl shadow 
-              ${
-                msg.senderId !== authUserId
-                  ? "bg-gray-800 text-gray-100 rounded-bl-none"
-                  : "bg-gray-200 text-gray-900 rounded-br-none"
-              } `}
+          <button
+            type="submit"
+            disabled={!message.trim() || !isConnected || isLoading}
+            className="px-6 py-2 bg-blue-500 hover:bg-blue-600 
+                     disabled:bg-gray-300 disabled:cursor-not-allowed
+                     text-white font-medium rounded-lg transition-colors
+                     flex items-center justify-center min-w-[80px]"
           >
-            {msg.message}
+            {isLoading ? (
+              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+            ) : (
+              "Send"
+            )}
+          </button>
+        </div>
+
+        {/* Connection status indicator */}
+        <div className="mt-2 flex items-center justify-between text-sm">
+          <div
+            className={`flex items-center gap-2 ${
+              isConnected ? "text-green-600" : "text-red-600"
+            }`}
+          >
+            <div
+              className={`w-2 h-2 rounded-full ${
+                isConnected ? "bg-green-500" : "bg-red-500"
+              }`}
+            />
+            {isConnected ? "Connected" : "Disconnected"}
+          </div>
+
+          <div className="text-gray-500 dark:text-gray-400">
+            Press Enter to send
           </div>
         </div>
-      ))}
+      </form>
     </div>
   );
 };
 
-export default Chats;
+export default MessageInput;

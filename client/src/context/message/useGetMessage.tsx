@@ -28,7 +28,7 @@ function useGetMessage() {
     getMessage();
   }, [selectedConversation, setMessages]);
 
-  return { messages, loading };
+  return { messages, loading , setMessages};
 }
 
 export default useGetMessage;
